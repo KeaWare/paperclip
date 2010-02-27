@@ -1,3 +1,18 @@
+=New Usage
+
+In your model, you can specify a style for the :original image and turn off
+the reprocessing of the :original image. This allows you to reduce the size
+of gigantic images **on the upload**, but leave the :original image untouched
+every time you do re-cropping.
+
+  class User < ActiveRecord::Base
+    has_attached_file :avatar,
+                      :styles => { :medium => "300x300>", :thumb => "100x100>", :original => "750" },
+                      :reprocess_original => false,
+                      :processors => [:cropper]
+  end
+
+
 =Paperclip
 
 Paperclip is intended as an easy file attachment library for ActiveRecord. The
