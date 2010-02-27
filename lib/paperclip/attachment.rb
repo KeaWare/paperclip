@@ -7,15 +7,17 @@ module Paperclip
     
     def self.default_options
       @default_options ||= {
-        :url               => "/system/:attachment/:id/:style/:filename",
-        :path              => ":rails_root/public:url",
-        :styles            => {},
-        :processors        => [:thumbnail],
-        :convert_options   => {},
-        :default_url       => "/:attachment/:style/missing.png",
-        :default_style     => :original,
-        :storage           => :filesystem,
-        :whiny             => Paperclip.options[:whiny] || Paperclip.options[:whiny_thumbnails]
+        :url                => "/system/:attachment/:id/:style/:filename",
+        :path               => ":rails_root/public:url",
+        :styles             => {},
+        :processors         => [:thumbnail],
+        :convert_options    => {},
+        :default_url        => "/:attachment/:style/missing.png",
+        :default_style      => :original,
+        :storage            => :filesystem,
+        :whiny              => Paperclip.options[:whiny] || Paperclip.options[:whiny_thumbnails],
+        :process_original   => true,
+        :reprocess_original => true
       }
     end
 
@@ -204,6 +206,8 @@ module Paperclip
     # thumbnails forcefully, by reobtaining the original file and going through
     # the post-process again.
     def reprocess!
+      process_flag = options[:process_original]
+      options[:process_original] = options[:reprocess_original]
       new_original = Tempfile.new("paperclip-reprocess")
       new_original.binmode
       if old_original = to_file(:original)
@@ -219,6 +223,7 @@ module Paperclip
       else
         true
       end
+      options[:process_original] = process_flag
     end
     
     # Returns true if a file has been assigned.
@@ -296,14 +301,17 @@ module Paperclip
 
     def post_process_styles #:nodoc:
       styles.each do |name, style|
-        begin
-          raise RuntimeError.new("Style #{name} has no processors defined.") if style.processors.blank?
-          @queued_for_write[name] = style.processors.inject(@queued_for_write[:original]) do |file, processor|
-            Paperclip.processor(processor).make(file, style.processor_options, self)
+        unless (name == :original && !options[:process_original])
+          log("name: #{name}; process_original: #{options[:process_original].to_s}")
+          begin
+            raise RuntimeError.new("Style #{name} has no processors defined.") if style.processors.blank?
+            @queued_for_write[name] = style.processors.inject(@queued_for_write[:original]) do |file, processor|
+              Paperclip.processor(processor).make(file, style.processor_options, self)
+            end
+          rescue PaperclipError => e
+            log("An error was received while processing: #{e.inspect}")
+            (@errors[:processing] ||= []) << e.message if @whiny
           end
-        rescue PaperclipError => e
-          log("An error was received while processing: #{e.inspect}")
-          (@errors[:processing] ||= []) << e.message if @whiny
         end
       end
     end
@@ -331,4 +339,3 @@ module Paperclip
 
   end
 end
-
